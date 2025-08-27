@@ -34,9 +34,10 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        String sub = null;
         try {
-            String sub = JwtUtility.getSubFromRestEvent(event);
-            if (sub == null) return response(401, "Unauthorized");
+            sub = JwtUtility.getSubFromRestEvent(event);
+            if (sub == null) return response(401, Map.of("message", "Unauthorized"));
 
             // Scan companies table
             ScanRequest scanRequest = ScanRequest.builder()
@@ -48,22 +49,22 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
             List<Causes> causes = scanResponse.items().stream()
                     .map(rec -> CausesUtility.mapToCauses(rec))
                     .collect(Collectors.toList());
-
-            // Serialize to JSON
-            String responseBody = objectMapper.writeValueAsString(causes);
-
-            return response(200,responseBody);
-
-        } catch (JsonProcessingException e) {
-            return response(500,"error : Failed to serialize items to JSON");
-        } catch (Exception e) {
-            return response(500,"error : Unexpected server error: " + e.getMessage());
+            return response(200,causes);
+        }  catch (Exception e) {
+            System.out.println(e.getMessage() + " for user " + sub);
+            return response(500,Map.of("error", "Unexpected server error: " + e.getMessage()) );
         }
     }
-    private APIGatewayProxyResponseEvent response(int status, String body) {
+    private APIGatewayProxyResponseEvent response(int status, Object body) {
+        String responseBody = null;
+        try {
+            responseBody = objectMapper.writeValueAsString(body);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
         return new APIGatewayProxyResponseEvent()
                 .withStatusCode(status)
                 .withHeaders(Map.of("Content-Type", "application/json"))
-                .withBody(body);
+                .withBody(responseBody);
     }
 }
