@@ -24,15 +24,46 @@ pipeline {
             }
         }
         
+        stage('Setup Dependencies') {
+            steps {
+                script {
+                    echo "📦 Building and installing boycottpro-common-models dependency"
+                    try {
+                        sh '''
+                            # Clone and build common models dependency
+                            if [ -d "common-models-temp" ]; then
+                                rm -rf common-models-temp
+                            fi
+                            git clone https://github.com/kesslersoftware/boycottpro-common-models.git common-models-temp
+                            cd common-models-temp
+                            git checkout development
+                            chmod +x ./mvnw
+                            ./mvnw clean install -DskipTests -q
+                            cd ..
+                            rm -rf common-models-temp
+                            
+                            # Remove GitHub repository from pom.xml to force local resolution
+                            sed -i '/<repositories>/,/<\/repositories>/d' pom.xml
+                            echo "Removed GitHub repository from pom.xml - using local Maven repository only"
+                        '''
+                        echo "✅ Common models dependency installed and pom.xml updated"
+                    } catch (Exception e) {
+                        echo "⚠️ Failed to setup dependencies: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+        
         stage('Build & Test') {
             steps {
                 script {
                     try {
                         sh '''
                             chmod +x ./mvnw
-                            ./mvnw clean test jacoco:report
+                            ./mvnw clean test
                         '''
-                        echo "✅ Tests and coverage completed successfully"
+                        echo "✅ Tests completed successfully"
                     } catch (Exception e) {
                         echo "⚠️ Tests failed but continuing build: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
@@ -52,16 +83,8 @@ pipeline {
                             echo "⚠️ Failed to publish test results: ${e.getMessage()}"
                         }
                         
-                        try {
-                            archiveArtifacts(
-                                artifacts: 'target/site/jacoco/**/*',
-                                allowEmptyArchive: true,
-                                fingerprint: false
-                            )
-                            echo "✅ JaCoCo coverage report archived"
-                        } catch (Exception e) {
-                            echo "⚠️ Failed to archive JaCoCo report: ${e.getMessage()}"
-                        }
+                        // JaCoCo plugin not configured in Lambda projects - skipping coverage report
+                        echo "ℹ️  JaCoCo coverage reports not configured for Lambda projects"
                     }
                 }
             }
