@@ -43,7 +43,7 @@ pipeline {
                             rm -rf common-models-temp
                             
                             # Remove GitHub repository from pom.xml to force local resolution
-                            sed -i '/<repositories>/,/<\/repositories>/d' pom.xml
+                            sed -i '/<repositories>/,/<\\/repositories>/d' pom.xml
                             echo "Removed GitHub repository from pom.xml - using local Maven repository only"
                         '''
                         echo "✅ Common models dependency installed and pom.xml updated"
