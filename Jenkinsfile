@@ -36,7 +36,7 @@ pipeline {
                             fi
                             git clone https://github.com/kesslersoftware/boycottpro-common-models.git common-models-temp
                             cd common-models-temp
-                            git checkout development
+                            git checkout main
                             chmod +x ./mvnw
                             ./mvnw clean install -DskipTests -q
                             cd ..
