@@ -38,6 +38,8 @@ pipeline {
                             cd common-models-temp
                             git checkout main
                             chmod +x ./mvnw
+                            export JAVA_HOME="${TOOL_JDK_21}"
+                            export PATH="$JAVA_HOME/bin:$PATH"
                             ./mvnw clean install -DskipTests -q
                             cd ..
                             rm -rf common-models-temp
@@ -61,6 +63,8 @@ pipeline {
                     try {
                         sh '''
                             chmod +x ./mvnw
+                            export JAVA_HOME="${TOOL_JDK_21}"
+                            export PATH="$JAVA_HOME/bin:$PATH"
                             ./mvnw clean test
                         '''
                         echo "✅ Tests completed successfully"
@@ -99,6 +103,8 @@ pipeline {
                     try {
                         echo "🔍 Running SonarQube analysis (direct Maven execution)"
                         sh '''
+                            export JAVA_HOME="${TOOL_JDK_21}"
+                            export PATH="$JAVA_HOME/bin:$PATH"
                             ./mvnw sonar:sonar \\
                                 -Dsonar.host.url=http://localhost:9000 \\
                                 -Dsonar.projectKey=${JOB_NAME} \\
@@ -132,6 +138,8 @@ pipeline {
             steps {
                 sh '''
                     chmod +x ./mvnw
+                    export JAVA_HOME="${TOOL_JDK_21}"
+                    export PATH="$JAVA_HOME/bin:$PATH"
                     echo "Packaging AWS Lambda function..."
                     ./mvnw package -DskipTests -B
                 '''
