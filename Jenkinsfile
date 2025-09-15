@@ -1,14 +1,31 @@
+// Jenkins Pipeline Template for AWS Lambda Functions
+// This template handles all 33 Java Lambda repositories
+
 pipeline {
     agent any
     
-    // Using Maven Wrapper - no tool configuration required
+    tools {
+        maven 'Maven'
+        jdk 'JDK-21'
+    }
     
     parameters {
-        booleanParam(
-            name: 'SKIP_SONAR',
-            defaultValue: false,
-            description: 'Skip SonarQube analysis'
+        choice(
+            name: 'DEPLOY_ENVIRONMENT',
+            choices: ['dev', 'staging', 'test', 'prod'],
+            description: 'Target deployment environment'
         )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip unit tests (emergency deployments only)'
+        )
+    }
+    
+    environment {
+        AWS_PROFILE = "boycottpro-${params.DEPLOY_ENVIRONMENT}-ops"
+        LAMBDA_NAME = "${env.JOB_NAME.replace('-pipeline', '')}"
+        REGION = "us-east-1"
     }
     
     stages {
@@ -16,79 +33,48 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    env.BUILD_VERSION = sh(
-                        script: 'echo "${BUILD_NUMBER}-$(echo ${GIT_COMMIT} | cut -c1-7)"',
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
                         returnStdout: true
                     ).trim()
                 }
             }
         }
         
-        stage('Setup Dependencies') {
-            steps {
-                script {
-                    echo "📦 Building and installing boycottpro-common-models dependency"
-                    try {
-                        sh '''
-                            # Clone and build common models dependency
-                            if [ -d "common-models-temp" ]; then
-                                rm -rf common-models-temp
-                            fi
-                            git clone https://github.com/kesslersoftware/boycottpro-common-models.git common-models-temp
-                            cd common-models-temp
-                            git checkout main
-                            chmod +x ./mvnw
-                            export JAVA_HOME="${TOOL_JDK_21}"
-                            export PATH="$JAVA_HOME/bin:$PATH"
-                            ./mvnw clean install -DskipTests -q
-                            cd ..
-                            rm -rf common-models-temp
-                            
-                            # Remove GitHub repository from pom.xml to force local resolution
-                            sed -i '/<repositories>/,/<\\/repositories>/d' pom.xml
-                            echo "Removed GitHub repository from pom.xml - using local Maven repository only"
-                        '''
-                        echo "✅ Common models dependency installed and pom.xml updated"
-                    } catch (Exception e) {
-                        echo "⚠️ Failed to setup dependencies: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+        stage('Test') {
+            when {
+                expression { !params.SKIP_TESTS }
             }
-        }
-        
-        stage('Build & Test') {
             steps {
-                script {
-                    try {
-                        sh '''
-                            chmod +x ./mvnw
-                            export JAVA_HOME="${TOOL_JDK_21}"
-                            export PATH="$JAVA_HOME/bin:$PATH"
-                            ./mvnw clean test
-                        '''
-                        echo "✅ Tests completed successfully"
-                    } catch (Exception e) {
-                        echo "⚠️ Tests failed but continuing build: ${e.getMessage()}"
-                        currentBuild.result = 'UNSTABLE'
-                    }
-                }
+                sh '''
+                    export JAVA_HOME="${TOOL_JDK_21}"
+                    export PATH="$JAVA_HOME/bin:$PATH"
+                    mvn clean test
+                '''
             }
             post {
                 always {
                     script {
                         try {
-                            junit(
-                                testResults: 'target/surefire-reports/*.xml',
-                                allowEmptyResults: true
-                            )
+                            junit testResultsPattern: 'target/surefire-reports/*.xml'
                             echo "✅ Test results published successfully"
                         } catch (Exception e) {
                             echo "⚠️ Failed to publish test results: ${e.getMessage()}"
                         }
                         
-                        // JaCoCo plugin not configured in Lambda projects - skipping coverage report
-                        echo "ℹ️  JaCoCo coverage reports not configured for Lambda projects"
+                        try {
+                            publishHTML([
+                                allowMissing: true,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'target/site/jacoco',
+                                reportFiles: 'index.html',
+                                reportName: 'JaCoCo Coverage Report'
+                            ])
+                            echo "✅ JaCoCo coverage report published"
+                        } catch (Exception e) {
+                            echo "⚠️ Failed to publish JaCoCo report: ${e.getMessage()}"
+                        }
                     }
                 }
             }
@@ -96,21 +82,21 @@ pipeline {
         
         stage('SonarQube Analysis') {
             when {
-                expression { !params.SKIP_SONAR }
+                expression { !params.SKIP_TESTS }
             }
             steps {
                 script {
                     try {
-                        echo "🔍 Running SonarQube analysis (direct Maven execution)"
-                        sh '''
-                            export JAVA_HOME="${TOOL_JDK_21}"
-                            export PATH="$JAVA_HOME/bin:$PATH"
-                            ./mvnw sonar:sonar \\
-                                -Dsonar.host.url=http://localhost:9000 \\
-                                -Dsonar.projectKey=${JOB_NAME} \\
-                                -Dsonar.projectName="${JOB_NAME}" \\
-                                -Dsonar.projectVersion=${BUILD_VERSION}
-                        '''
+                        withSonarQubeEnv('Local-SonarQube') {
+                            sh '''
+                                export JAVA_HOME="${TOOL_JDK_21}"
+                                export PATH="$JAVA_HOME/bin:$PATH"
+                                mvn sonar:sonar \
+                                    -Dsonar.projectKey=${LAMBDA_NAME} \
+                                    -Dsonar.projectName="${LAMBDA_NAME}" \
+                                    -Dsonar.projectVersion=${GIT_COMMIT_SHORT}
+                            '''
+                        }
                         echo "✅ SonarQube analysis completed successfully"
                     } catch (Exception e) {
                         echo "⚠️ SonarQube analysis failed but continuing build: ${e.getMessage()}"
@@ -120,34 +106,84 @@ pipeline {
             }
         }
         
-        stage('SonarQube Report') {
+        stage('Quality Gate (Informational Only)') {
             when {
-                expression { !params.SKIP_SONAR }
+                expression { !params.SKIP_TESTS }
             }
             steps {
                 script {
-                    echo "📊 SonarQube analysis completed"
-                    echo "🔗 View results at: http://localhost:9000/projects"
-                    echo "📁 Project key: ${JOB_NAME}"
-                    echo "ℹ️  Quality gate checks are available in SonarQube web UI"
+                    try {
+                        timeout(time: 3, unit: 'MINUTES') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                echo "⚠️ SonarQube Quality Gate failed: ${qg.status}"
+                                echo "📊 This is informational only - build will continue"
+                                currentBuild.result = 'UNSTABLE'
+                            } else {
+                                echo "✅ SonarQube Quality Gate passed"
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️ Quality Gate check failed but continuing: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
         }
         
-        stage('Package Lambda') {
+        stage('Build Lambda Package') {
             steps {
                 sh '''
-                    chmod +x ./mvnw
                     export JAVA_HOME="${TOOL_JDK_21}"
                     export PATH="$JAVA_HOME/bin:$PATH"
-                    echo "Packaging AWS Lambda function..."
-                    ./mvnw package -DskipTests -B
+                    mvn clean package shade:shade -DskipTests
+
+                    # Verify the shaded JAR was created (this is the deployable Lambda JAR)
+                    if [ ! -f target/${LAMBDA_NAME}.jar ]; then
+                        echo "ERROR: Lambda shaded JAR not found: target/${LAMBDA_NAME}.jar"
+                        ls -la target/
+                        exit 1
+                    fi
+
+                    # Create deployment package with the shaded JAR
+                    mkdir -p deployment
+                    cp target/${LAMBDA_NAME}.jar deployment/${LAMBDA_NAME}-${GIT_COMMIT_SHORT}.jar
+
+                    echo "✅ Lambda JAR packaged: deployment/${LAMBDA_NAME}-${GIT_COMMIT_SHORT}.jar"
                 '''
                 
-                archiveArtifacts(
-                    artifacts: 'target/*.jar',
-                    fingerprint: true
-                )
+                archiveArtifacts artifacts: 'deployment/*.jar', fingerprint: true
+            }
+        }
+        
+        stage('Deploy to AWS') {
+            steps {
+                deployLambda()
+            }
+        }
+        
+        stage('Integration Tests') {
+            when {
+                expression { params.DEPLOY_ENVIRONMENT != 'prod' }
+            }
+            steps {
+                script {
+                    // Run basic Lambda invocation test
+                    sh '''
+                        aws lambda invoke \
+                            --function-name ${LAMBDA_NAME}-${DEPLOY_ENVIRONMENT} \
+                            --payload '{"test": true}' \
+                            --region ${REGION} \
+                            --profile ${AWS_PROFILE} \
+                            response.json
+                            
+                        # Check if Lambda responded
+                        if [ ! -s response.json ]; then
+                            echo "ERROR: Lambda did not respond"
+                            exit 1
+                        fi
+                    '''
+                }
             }
         }
     }
@@ -157,10 +193,41 @@ pipeline {
             cleanWs()
         }
         success {
-            echo "✅ Lambda pipeline completed successfully"
+            script {
+                if (params.DEPLOY_ENVIRONMENT == 'prod') {
+                    // Tag the successful production deployment
+                    sh """
+                        git tag -a prod-${env.GIT_COMMIT_SHORT} -m "Production deployment of ${LAMBDA_NAME}"
+                        git push origin prod-${env.GIT_COMMIT_SHORT}
+                    """
+                }
+            }
         }
         failure {
-            echo "❌ Lambda pipeline failed"
+            emailext (
+                subject: "FAILED: Lambda Deployment - ${LAMBDA_NAME}",
+                body: "Lambda deployment failed for ${LAMBDA_NAME} in ${params.DEPLOY_ENVIRONMENT} environment. Check Jenkins for details.",
+                to: "dylan@kesslersoftware.com"
+            )
         }
+    }
+}
+
+def deployLambda() {
+    withAWS(profile: env.AWS_PROFILE, region: env.REGION) {
+        sh """
+            # Update Lambda function directly with JAR file
+            aws lambda update-function-code \
+                --function-name ${LAMBDA_NAME}-${params.DEPLOY_ENVIRONMENT} \
+                --zip-file fileb://deployment/${LAMBDA_NAME}-${env.GIT_COMMIT_SHORT}.jar \
+                --region ${env.REGION}
+            
+            # Wait for update to complete
+            aws lambda wait function-updated \
+                --function-name ${LAMBDA_NAME}-${params.DEPLOY_ENVIRONMENT} \
+                --region ${env.REGION}
+                
+            echo "Successfully deployed ${LAMBDA_NAME} to ${env.REGION}"
+        """
     }
 }
