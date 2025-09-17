@@ -38,7 +38,7 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
         try {
             sub = JwtUtility.getSubFromRestEvent(event);
             if (sub == null) return response(401, Map.of("message", "Unauthorized"));
-
+            System.out.println("user is authorized");
             // Scan companies table
             ScanRequest scanRequest = ScanRequest.builder()
                     .tableName(TABLE_NAME)
