@@ -75,6 +75,17 @@
   </dependencies>
   <repositories>
     <repository>
+      <id>lambda-artifacts-dev</id>
+      <name>Lambda Artifacts Dev (for local development)</name>
+      <url>http://localhost:8096/repository/lambda-artifacts-dev/</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+    <repository>
       <id>nexus-public</id>
       <name>Nexus Public Repository</name>
       <url>http://localhost:8096/repository/maven-public/</url>

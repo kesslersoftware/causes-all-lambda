@@ -4,7 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-
+import com.boycottpro.utilities.Logger;
 import com.boycottpro.models.Causes;
 import com.boycottpro.utilities.CausesUtility;
 import com.boycottpro.utilities.JwtUtility;
@@ -35,23 +35,27 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
         String sub = null;
+        int lineNum = 38;
         try {
             sub = JwtUtility.getSubFromRestEvent(event);
-            if (sub == null) return response(401, Map.of("message", "Unauthorized"));
-            System.out.println("user is authorized");
-            // Scan companies table
+            if (sub == null) {
+                Logger.error(42, sub, "user is authorized");
+                return response(401, Map.of("message", "Unauthorized"));
+            }
+            lineNum = 45;
             ScanRequest scanRequest = ScanRequest.builder()
                     .tableName(TABLE_NAME)
                     .build();
             ScanResponse scanResponse = dynamoDb.scan(scanRequest);
-
+            Logger.info(lineNum = 50,sub);
             // Convert AttributeValue map to Map<String, Object>
             List<Causes> causes = scanResponse.items().stream()
                     .map(rec -> CausesUtility.mapToCauses(rec))
                     .collect(Collectors.toList());
+            lineNum = 55;
             return response(200,causes);
         }  catch (Exception e) {
-            System.out.println(e.getMessage() + " for user " + sub);
+            Logger.error(lineNum, sub, e.getMessage());
             return response(500,Map.of("error", "Unexpected server error: " + e.getMessage()) );
         }
     }
