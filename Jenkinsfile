@@ -66,14 +66,14 @@ pipeline {
 <settings>
   <mirrors>
     <mirror>
-      <id>nexus-all</id>
+      <id>lambda-artifacts-mirror</id>
       <mirrorOf>*</mirrorOf>
-      <url>http://host.docker.internal:8096/repository/maven-public/</url>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
     </mirror>
   </mirrors>
   <servers>
     <server>
-      <id>nexus-all</id>
+      <id>lambda-artifacts-mirror</id>
       <username>admin</username>
       <password>admin123</password>
     </server>
@@ -173,14 +173,14 @@ pipeline {
 <settings>
   <mirrors>
     <mirror>
-      <id>nexus-all</id>
+      <id>lambda-artifacts-mirror</id>
       <mirrorOf>*</mirrorOf>
-      <url>http://host.docker.internal:8096/repository/maven-public/</url>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
     </mirror>
   </mirrors>
   <servers>
     <server>
-      <id>nexus-all</id>
+      <id>lambda-artifacts-mirror</id>
       <username>admin</username>
       <password>admin123</password>
     </server>
