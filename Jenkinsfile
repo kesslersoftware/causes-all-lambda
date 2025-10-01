@@ -3,12 +3,12 @@
 
 pipeline {
     agent any
-    
+
     tools {
         maven 'Maven'
         jdk 'JDK-21'
     }
-    
+
     parameters {
         choice(
             name: 'ENV',
@@ -26,7 +26,7 @@ pipeline {
         LAMBDA_NAME = "${env.JOB_NAME.replace('-pipeline', '')}"
         ENV = "${params.ENV}"
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -54,7 +54,7 @@ pipeline {
             }
         }
 
-        
+
         stage('Test') {
             when {
                 expression { !params.SKIP_TESTS }
@@ -67,7 +67,7 @@ pipeline {
   <mirrors>
     <mirror>
       <id>nexus-public</id>
-      <mirrorOf>central</mirrorOf>
+      <mirrorOf>*,!lambda-artifacts-${ENV}</mirrorOf>
       <url>http://host.docker.internal:8096/repository/maven-public/</url>
     </mirror>
   </mirrors>
@@ -83,6 +83,14 @@ pipeline {
       <password>admin123</password>
     </server>
   </servers>
+  <repositories>
+    <repository>
+      <id>lambda-artifacts-${ENV}</id>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
 </settings>'''
                 }
                 sh '''
@@ -100,7 +108,7 @@ pipeline {
                         } catch (Exception e) {
                             echo "⚠️ Failed to publish test results: ${e.getMessage()}"
                         }
-                        
+
                         try {
                             publishHTML([
                                 allowMissing: true,
@@ -118,7 +126,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('SonarQube Analysis') {
             when {
                 expression { !params.SKIP_TESTS }
@@ -144,7 +152,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Quality Gate (Informational Only)') {
             when {
                 expression { !params.SKIP_TESTS }
@@ -169,7 +177,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Build Lambda Package') {
             steps {
                 script {
@@ -179,7 +187,7 @@ pipeline {
   <mirrors>
     <mirror>
       <id>nexus-public</id>
-      <mirrorOf>central</mirrorOf>
+      <mirrorOf>*,!lambda-artifacts-${ENV}</mirrorOf>
       <url>http://host.docker.internal:8096/repository/maven-public/</url>
     </mirror>
   </mirrors>
@@ -195,6 +203,14 @@ pipeline {
       <password>admin123</password>
     </server>
   </servers>
+  <repositories>
+    <repository>
+      <id>lambda-artifacts-${ENV}</id>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
 </settings>'''
                 }
                 sh '''
@@ -266,7 +282,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Verify Lambda Package') {
             steps {
                 script {
@@ -291,7 +307,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()
