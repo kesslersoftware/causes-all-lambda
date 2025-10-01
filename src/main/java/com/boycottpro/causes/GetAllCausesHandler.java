@@ -39,7 +39,7 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
         try {
             sub = JwtUtility.getSubFromRestEvent(event);
             if (sub == null) {
-                Logger.error(42, sub, "user is authorized");
+                Logger.error(42, sub, "user is Unauthorized");
                 return response(401, Map.of("message", "Unauthorized"));
             }
             lineNum = 45;
