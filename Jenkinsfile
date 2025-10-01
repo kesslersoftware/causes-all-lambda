@@ -60,10 +60,30 @@ pipeline {
                 expression { !params.SKIP_TESTS }
             }
             steps {
+                script {
+                    // Create custom Maven settings for Docker networking
+                    writeFile file: 'custom-settings.xml', text: '''<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <mirrors>
+    <mirror>
+      <id>nexus-all</id>
+      <mirrorOf>*</mirrorOf>
+      <url>http://host.docker.internal:8096/repository/maven-public/</url>
+    </mirror>
+  </mirrors>
+  <servers>
+    <server>
+      <id>nexus-all</id>
+      <username>admin</username>
+      <password>admin123</password>
+    </server>
+  </servers>
+</settings>'''
+                }
                 sh '''
                     export JAVA_HOME="${TOOL_JDK_21}"
                     export PATH="$JAVA_HOME/bin:$PATH"
-                    mvn clean test -P${ENV}
+                    mvn clean test -s custom-settings.xml
                 '''
             }
             post {
@@ -175,7 +195,7 @@ pipeline {
                 sh '''
                     export JAVA_HOME="${TOOL_JDK_21}"
                     export PATH="$JAVA_HOME/bin:$PATH"
-                    mvn clean package shade:shade -DskipTests -P${ENV} -s custom-settings.xml
+                    mvn clean package shade:shade -DskipTests -s custom-settings.xml
 
                     # Verify the shaded JAR was created (this is the deployable Lambda JAR)
                     if [ ! -f target/${LAMBDA_NAME}.jar ]; then
