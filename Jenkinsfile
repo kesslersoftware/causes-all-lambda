@@ -66,18 +66,31 @@ pipeline {
 <settings>
   <mirrors>
     <mirror>
-      <id>lambda-artifacts-mirror</id>
-      <mirrorOf>*</mirrorOf>
-      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <id>nexus-public</id>
+      <mirrorOf>*,!lambda-artifacts-${ENV}</mirrorOf>
+      <url>http://host.docker.internal:8096/repository/maven-public/</url>
     </mirror>
   </mirrors>
   <servers>
     <server>
-      <id>lambda-artifacts-mirror</id>
+      <id>nexus-public</id>
+      <username>admin</username>
+      <password>admin123</password>
+    </server>
+    <server>
+      <id>lambda-artifacts-${ENV}</id>
       <username>admin</username>
       <password>admin123</password>
     </server>
   </servers>
+  <repositories>
+    <repository>
+      <id>lambda-artifacts-${ENV}</id>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
 </settings>'''
                 }
                 sh '''
@@ -173,14 +186,14 @@ pipeline {
 <settings>
   <mirrors>
     <mirror>
-      <id>lambda-artifacts-mirror</id>
-      <mirrorOf>*</mirrorOf>
-      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <id>nexus-public</id>
+      <mirrorOf>*,!lambda-artifacts-${ENV}</mirrorOf>
+      <url>http://host.docker.internal:8096/repository/maven-public/</url>
     </mirror>
   </mirrors>
   <servers>
     <server>
-      <id>lambda-artifacts-mirror</id>
+      <id>nexus-public</id>
       <username>admin</username>
       <password>admin123</password>
     </server>
@@ -190,6 +203,14 @@ pipeline {
       <password>admin123</password>
     </server>
   </servers>
+  <repositories>
+    <repository>
+      <id>lambda-artifacts-${ENV}</id>
+      <url>http://host.docker.internal:8096/repository/lambda-artifacts-${ENV}/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
 </settings>'''
                 }
                 sh '''
