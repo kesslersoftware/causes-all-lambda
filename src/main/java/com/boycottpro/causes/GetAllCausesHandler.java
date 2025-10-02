@@ -47,7 +47,7 @@ public class GetAllCausesHandler implements RequestHandler<APIGatewayProxyReques
                     .tableName(TABLE_NAME)
                     .build();
             ScanResponse scanResponse = dynamoDb.scan(scanRequest);
-            Logger.info(lineNum = 50,sub);
+            lineNum = 50;
             // Convert AttributeValue map to Map<String, Object>
             List<Causes> causes = scanResponse.items().stream()
                     .map(rec -> CausesUtility.mapToCauses(rec))
